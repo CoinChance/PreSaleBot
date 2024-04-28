@@ -8,7 +8,7 @@ from selenium.webdriver.firefox.service import Service
 class BaseScrapper:
     def __init__(self, logging):
         self.driver = None
-        self.sec_driver = None
+        #self.sec_driver = None
         #self.elements = None
         self.status = None
         self.logging = logging
@@ -20,9 +20,9 @@ class BaseScrapper:
             options = webdriver.FirefoxOptions()
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--headless')
+            #options.add_argument('--headless')
             self.driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
-            self.sec_driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
+            #self.sec_driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
             self.status = True
 
     def get_status(self):
@@ -31,14 +31,14 @@ class BaseScrapper:
     def stop_driver(self):
         if self.status is True:
             self.driver.quit()
-            self.sec_driver.quit()
+            #self.sec_driver.quit()
             self.logging.info("Selenium successfully disconnected from the website")
 
     def extract_data(self, tag, xpath, extract_type='text'):
         if self.status is False:
             return None
         try:
-            element = self.sec_driver.find_element(By.XPATH, xpath)
+            element = self.driver.find_element(By.XPATH, xpath)
             if extract_type == 'text':
                 return element.text.strip()
             elif extract_type == 'text_split':

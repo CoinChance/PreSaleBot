@@ -104,8 +104,10 @@ scheduler = Scheduler(logging=logging, db=db)
 # Schedule the delete log files job to run every 12 hours
 schedule.every(DELETE_SERVICE_INTERVAL).hours.do(delete_old_logs)
 
+scheduler.run()
+
 # Schedule the pinksale scrapping job to Run the every 4 hours
-schedule.every(SCRAPPING_INTERVAL).hours.do(scheduler.run)
+schedule.every(SCRAPPING_INTERVAL).minutes.do(scheduler.run)
 
 error_message = f"System Deployed Successfully, Interval: {SCRAPPING_INTERVAL}"
 logging.info(error_message)

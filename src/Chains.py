@@ -1,0 +1,2 @@
+
+Chains = ['ETH', 'BNB', 'SOL']

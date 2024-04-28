@@ -23,14 +23,20 @@ class Scheduler:
                 #proj_url = link.get_attribute('href')
                 #logging.info('URL: %s', link.get_attribute('href'))  # Print the href attribute value of each <a> tag
                 if self.db.check_project_url(proj_url) == False:   
-                    self.logging.info('Project seems to be new, Scrapping URL: %s', proj_url)    
-                    data = self.pinksale.extract_token_info(proj_url=proj_url)
-                    if data.live_status == True:
-                        self.logging.info('Project is Live, Add Info to DB: %s', proj_url)
-                        self.db.insert_project_data(proj_url, data)
-                        continue
-                    else:
-                        self.logging.info('Project is not LIVE, Skipping URL: %s', proj_url)
+                    self.logging.info('Project seems to be new, Scrapping URL: %s', proj_url)  
+                    try:
+                        self.pinksale.open_sub_url(url=proj_url)                    
+                        #data = self.pinksale.extract_token_info(proj_url=proj_url)
+                        data = self.pinksale.extract_data()
+                        if data.live_status == True and data.status == True:
+                            self.logging.info('Project is Live, Add Info to DB: %s', proj_url)
+                            self.db.insert_project_data(proj_url, data)
+                            continue
+                        else:
+                            self.logging.info('Project is not LIVE, Skipping URL: %s', proj_url)
+                    except Exception as e:
+                        self.logging.info('Exception while Srcapping, Skipping URL: %s', proj_url)
+                        self.logging.error(e)
                 else:
                     self.logging.info('Project already exists, Skipping URL: %s', proj_url)
             
@@ -46,19 +52,21 @@ class Scheduler:
         
         if status:     
             links = self.solanapad.get_links()
-            for proj_url in links:                    
-                #proj_url = link.get_attribute('href')
-                #logging.info('URL: %s', link.get_attribute('href'))  # Print the href attribute value of each <a> tag
+            for proj_url in links:     
                 if self.db.check_project_url(proj_url) == False:   
                     self.logging.info('Project seems to be new, Scrapping URL: %s', proj_url)    
-                    #data = self.solanapad.extract_data(proj_url=proj_url)
-                    data = self.solanapad.extract_token_info_strategy1(url=proj_url)
-                    if data.live_status == True:
-                        self.logging.info('Project is Live, Add Info to DB: %s', proj_url)
-                        self.db.insert_project_data(proj_url, data)
-                        continue
-                    else:
-                        self.logging.info('Project is not LIVE, Skipping URL: %s', proj_url)
+                    try:
+                        self.solanapad.open_sub_url(url=proj_url)          
+                        data = self.solanapad.extract_data()
+                        if data.live_status == True and data.status == True:
+                            self.logging.info('Project is Live, Add Info to DB: %s', proj_url)
+                            self.db.insert_project_data(proj_url, data)
+                            continue
+                        else:
+                            self.logging.info('Project is not LIVE, Skipping URL: %s', proj_url)
+                    except Exception as e:
+                        self.logging.info('Exception while Srcapping, Skipping URL: %s', proj_url)
+                        self.logging.error(e)
                 else:
                     self.logging.info('Project already exists, Skipping URL: %s', proj_url)
             
@@ -76,8 +84,8 @@ class Scheduler:
             self.logging.info("DB Connected")
  
 
-            self.logging.info("Starting SolanaPad Job")
-            self.solanapad_job()
+            # self.logging.info("Starting SolanaPad Job")
+            # self.solanapad_job()
 
             self.logging.info("Starting PinkSale Job")
             self.pinksale_job()

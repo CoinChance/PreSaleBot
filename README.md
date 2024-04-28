@@ -78,14 +78,10 @@ Once connected to PostgreSQL, you can create a database and a table to store you
 CREATE DATABASE presalebot;
 \c presalebot;
 
+
 CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
-    url VARCHAR(255) UNIQUE
-);
-
-CREATE TABLE project_info (
-    id SERIAL PRIMARY KEY,
-    project_id INT REFERENCES projects(id),
+    url VARCHAR(255) UNIQUE,
     name VARCHAR(255), 
     symbol VARCHAR(255),
     web VARCHAR(255),
@@ -93,7 +89,7 @@ CREATE TABLE project_info (
     telegram VARCHAR(255),
     token_address VARCHAR(255),
     supply VARCHAR(255),           -- 1,000,000,000
-    pool_address VARCHAR(255),
+    chain VARCHAR(255),
     soft_cap VARCHAR(255),
     start_time TIMESTAMP,   -- 2024-04-03 18:00:00 (UTC)
     end_time TIMESTAMP,     -- 2024-04-03 18:00:00 (UTC)

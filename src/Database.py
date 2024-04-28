@@ -72,7 +72,7 @@ class Database:
                     telegram VARCHAR(255),
                     token_address VARCHAR(255),
                     supply VARCHAR(255),
-                    pool_address VARCHAR(255),
+                    chain VARCHAR(255),
                     soft_cap VARCHAR(255),
                     start_time TIMESTAMP,
                     end_time TIMESTAMP,
@@ -115,11 +115,11 @@ class Database:
             self.cur.execute("""
                 INSERT INTO projects (
                     url,name, symbol, web, twitter, telegram, token_address, supply,
-                    pool_address, soft_cap, start_time, end_time, lockup_time, rate, raised
+                    chain, soft_cap, start_time, end_time, lockup_time, rate, raised
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 url, data.name, data.symbol, data.web, data.twitter, data.telegram, data.token_address, data.supply,
-                    data.pool_address, data.soft_cap, data.start_time, data.end_time, data.lockup_time, data.rate, data.raised
+                    data.chain, data.soft_cap, data.start_time, data.end_time, data.lockup_time, data.rate, data.raised
             ))
 
             # Commit the transaction
