@@ -15,14 +15,14 @@ CREATE TABLE IF NOT EXISTS projects (
     twitter VARCHAR(255),
     telegram VARCHAR(255),
     token_address VARCHAR(255),
-    supply VARCHAR(255),
-    pool_address VARCHAR(255),
+    supply VARCHAR(255),           -- 1,000,000,000
+    chain VARCHAR(255),
     soft_cap VARCHAR(255),
-    start_time TIMESTAMP,
-    end_time TIMESTAMP,
-    lockup_time VARCHAR(255),
-    rate VARCHAR(255),
-    raised VARCHAR(255),
+    start_time VARCHAR(255),   -- 2024-04-03 18:00:00 (UTC)
+    end_time VARCHAR(255),     -- 2024-04-03 18:00:00 (UTC)
+    lockup_time VARCHAR(255),   -- 120 days after pool ends
+    rate VARCHAR(255),  -- 1 SOL = 155,411.3105 $BOOB
+    raised VARCHAR(255),    -- 2,687.3787 SOL (2687.38%)
     scrap_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

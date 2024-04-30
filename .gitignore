@@ -120,6 +120,8 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.vscode
+codium_388.assert
 .env
 .venv
 env/

@@ -91,8 +91,8 @@ CREATE TABLE projects (
     supply VARCHAR(255),           -- 1,000,000,000
     chain VARCHAR(255),
     soft_cap VARCHAR(255),
-    start_time TIMESTAMP,   -- 2024-04-03 18:00:00 (UTC)
-    end_time TIMESTAMP,     -- 2024-04-03 18:00:00 (UTC)
+    start_time VARCHAR(255),   -- 2024-04-03 18:00:00 (UTC)
+    end_time VARCHAR(255),     -- 2024-04-03 18:00:00 (UTC)
     lockup_time VARCHAR(255),   -- 120 days after pool ends
     rate VARCHAR(255),  -- 1 SOL = 155,411.3105 $BOOB
     raised VARCHAR(255),    -- 2,687.3787 SOL (2687.38%)
@@ -104,7 +104,7 @@ CREATE TABLE projects (
 ### Command Line Interaction with POSTGRES Docker
 
 ```
-docker exec -it presalebot psql -U postgres -d presalebot -U postgres -d presalebot
+docker exec -it presalebot psql -U postgres -d presalebot 
 ```
 
 

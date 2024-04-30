@@ -10,14 +10,16 @@ from bs4 import BeautifulSoup
 
 from src.TokenData import TokenData
 from src.BaseScrapper import BaseScrapper
-from src.Chains import Chains
+from src.Chains import Chains, Alternate_Names
 
 
-class PinkSaleScrapper(BaseScrapper):
+class SolaniumScrapper(BaseScrapper):
     def __init__(self, logging: logging.Logger) -> None:
         super().__init__(logging)
-        self._url = "https://www.pinksale.finance/launchpads" # Base URL for pinksale launchpads
+        self._url = "https://www.solanium.io/#live-projects" # Base URL for pinksale launchpads
         self._links: List[str] = [] # List of links scrapped from pinksale launchpads
+        self._name: List[str] = []
+        self.symbol: List[str] = []
         self.scroll_downs = 10  # Maximum Number of times to scroll down
 
     def start_driver(self) -> bool:
@@ -27,47 +29,46 @@ class PinkSaleScrapper(BaseScrapper):
             self.driver.get(self._url)
             WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             time.sleep(10)
+
             # Scroll down to load more data
-            scroll_pause_time = 5  # Adjust as needed
-            
+            scroll_pause_time = 2  # type: int
             for _ in range(self.scroll_downs):
                 # Scroll down by simulating the "END" key press
                 self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
                 time.sleep(scroll_pause_time)
+
             time.sleep(5)
             self.status = True
             self._extract_links()
+
         except Exception as ex:
             self.status = False
             self.logging.error("Exception (%s) occured while Opening URL %s", ex, self._url)
-        return self.status      
-    
+
+        return self.status
+
     def open_sub_url(self, url: str) -> bool:
-        """
-        Open a sub URL in the driver.
+        """Open a sub URL in the driver.
 
         Args:
-            url: The URL to open.
+            url (str): The URL to open.
 
         Returns:
-            True if the URL was opened successfully, False otherwise.
+            bool: True if the URL was opened successfully, False otherwise.
         """
         # Set the maximum time to wait for elements to be loaded (in seconds)
         self.driver.set_page_load_timeout(10)
-
         # Set implicit wait time for elements to be located
         self.driver.implicitly_wait(10)
 
         try:
-            # Attempt to open the URL
             self.driver.get(url)
             time.sleep(10)
-            return True
         except Exception as e:
-            # Log any exceptions during URL opening
             self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
+            return False
 
-        return False
+        return True
 
     def get_Status(self):
         return self.status
@@ -75,7 +76,25 @@ class PinkSaleScrapper(BaseScrapper):
     def get_links(self):
         return self._links
     
-    def extract_data(self) -> Optional[TokenData]:
+    def get_names(self):
+        return self._name
+    
+    @classmethod
+    def map_alternate_name(cls, name: str) -> str:
+        """Map alternate names to their original names."""
+        chains_lower = [chain.lower() for chain in Chains]
+        name_lower = name.lower()
+        if name_lower in chains_lower:
+            return name  # type: ignore
+
+        for alternate_name, original_name in Alternate_Names.items():
+            if name == alternate_name:
+                return original_name
+
+        return name
+
+
+    def extract_data(self, name: str) -> Optional[TokenData]:
         """
         Extract token data from the page source.
 
@@ -97,37 +116,42 @@ class PinkSaleScrapper(BaseScrapper):
             token_info: Dict[str, str] = {}  # The dictionary to store all the token data
 
             # Find all divs with class "transition-all"
-            divs = the_soup.find_all(class_="transition-all")
-            for div in divs:  # Loop through each div
-                try:
-                    # Extract the label and value from each div
-                    label = div.find(class_="flex-1 capitalize")
-                    if label is None:
-                        continue  # Skip this div if the label is not found
-                    label = label.text.strip()  # Remove any whitespace from the label
-                    value = div.find(class_="break-all")
-                    if value is None:
-                        continue  # Skip this div if the value is not found
-                    value = value.text.strip()  # Remove any whitespace from the value
+            divs = the_soup.find_all(class_="flex flex-col mb-[30px]")
+            for div in divs:
+                element = div.find_all(class_="flex justify-between w-full text-sm md:text-md")
+                for ele in element:
+                    span_elements = ele.find_all('span')
+                    try:
+                        label = span_elements[0].text.strip()
+                        if label is None:
+                            continue  # Skip this div if the label is not found
+                        
+                        value = span_elements[1].text.strip()
+                        if value is None:
+                            continue  # Skip this div if the value is not found
+                        
 
-                    if label == "Address":
-                        # Split the value at "Do not" and take the first segment
-                        value = value.split('Do not ')[0].strip()
-                    # If this is the first label-value pair with the "Address" label,
-                    # extract the chain name from the value
-                    if proj_chain is None:
-                        proj_chain = self._extract_chain(label, value)
+                        # if label == "Address":
+                        #     value = value.split('Do not ')[0].strip()
+                        if label == "Chain":
+                            value = self.map_alternate_name(value)
+                           
+                        
+                        
 
-                    # Store the label and value in the token_info dictionary
-                    token_info[label] = value
-                except Exception as ex:
-                    self.logging.error("Error extracting data: %s", ex)
+                        # Store the label and value in the token_info dictionary
+                        token_info[label] = value
+                    except Exception as ex:
+                        self.logging.error("Error extracting data: %s", ex)
 
-            if proj_chain is None:
-                self.logging.error("Chain not found")
-                return None  # If the chain is not found, return None
-            else:
-                token_info['Chain'] = proj_chain  # Otherwise, set the chain name in the token_info dictionary
+            # if proj_chain is None:
+            #     self.logging.error("Chain not found")
+            #     return None  # If the chain is not found, return None
+            # else:
+            #     token_info['Chain'] = proj_chain  # Otherwise, set the chain name in the token_info dictionary
+            
+            token_info['Name'] = name
+            token_info['Status'] = 'Sale live'
 
             twitter, telegram, website = self._extract_social_media_info(the_soup, token_info['Name'])
             if twitter is None:
@@ -149,7 +173,7 @@ class PinkSaleScrapper(BaseScrapper):
                 token_info['Website'] = website  # Otherwise, set the website key to the website link
 
             # Adapt the dictionary to TokenData class
-            return TokenData.pinksale_adapter(token_info)  # If there is no error, return the token data
+            return TokenData.solanium_adapter(token_info)  # If there is no error, return the token data
         except Exception as e:
             self.logging.error("Error: %s", e)
             return None  # If there is an error, return None
@@ -162,63 +186,37 @@ class PinkSaleScrapper(BaseScrapper):
             The total number of links extracted.
         """
         soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-        divs = soup.find_all(class_="p-2")
-        links_count = 0
-        live_count = 0
+        divs = soup.find_all("div", class_="w-full max-w-[580px] shadow-md rounded-solaniumDefault hover:scale-[1.01] hover:shadow-xl transition-all duration-500 bg-white")
+        links_count: int = 0  # type: ignore
+        live_count: int = 0  # type: ignore
         for div in divs:
-            print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-            # Find all links in the div
-            element = div.find(string='Sale live')
-            if element is not None:
-                live_count += 1
-                links = div.find_all('a')
-                print('----------------------------------------------')
-                for link in links:
-                    # Extract the href attribute
-                    href = link.get('href')
-                    print('href: ', href)
-                    if href.startswith('/launchpad/') or href.startswith('/solana/launchpad/'):
-                        link = 'https://www.pinksale.finance' + href
-                        self._links.append(link)
-                        links_count += 1
-                        self.logging.info('URL: %s', link)
-            else:
-                self.logging.debug('Sale Not Live')
-        self.logging.info('Total Live Projects: %d, Scrapped Links: %d' , live_count, links_count)
+            name: Optional[str] = None
+            elements = div.find_all("div", class_="content pt-5 px-5 sm:pt-30px sm:px-30px")
+            # __name = _div.find_all(class_="block font-poppins-bold text-xl sm:text-[40px]")
+            _name_ = elements[0].find_all("span")[0].text.strip()
+            if _name_ is not None:
+                name = _name_
+
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")            
+            live_count += 1
+            links = div.find_all("a")
+            print("----------------------------------------------")
+            for link in links:
+                # Extract the href attribute
+                href = link.get("href")
+                print("href: ", href)
+                if href.startswith("/project/"):
+                    link = "https://www.solanium.io" + href
+                    self._links.append(link)
+                    if name is not None:
+                        self._name.append(name)
+                    name = None
+                    links_count += 1
+                    self.logging.info("URL: %s", link)
+
+        self.logging.info("Total Live Projects: %d, Scrapped Links: %d", live_count, links_count)
         return links_count
 
-    def _extract_chain(self, label: str, value: str) -> Optional[str]:
-        """
-        Extract chain from label and value.
-
-        Args:
-            label: The label to check for 'Rate' or 'rate'.
-            value: The value to extract the chain from.
-
-        Returns:
-            The chain found in the value or None.
-        """
-        result: Optional[str] = None
-
-        # Check if the label contains 'Rate' or 'rate'
-        if 'Rate' in label or 'rate' in label:
-            # Split the value by spaces
-            words = value.split()
-
-            # Filter words that are in the chains_array
-            chains = [word for word in words if word in Chains]
-
-            # Check if exactly one chain is found in the value
-            if len(chains) == 1:
-                result = chains[0]
-                self.logging.debug("Found chain: %s", result)
-            else:
-                self.logging.debug("No valid chain found in the value.")
-        else:
-            self.logging.debug("Label does not contain 'Rate' or 'rate'.")
-
-        return result
-    
     def _extract_social_media_info(
         self,
         soup: BeautifulSoup,
@@ -238,7 +236,7 @@ class PinkSaleScrapper(BaseScrapper):
         telegram_link: Optional[str] = None
         website_link: Optional[str] = None
 
-        divs = soup.find_all("div", class_="flex items-center gap-2.5 text-gray-500 mt-2 justify-center")
+        divs = soup.find_all("div", class_="flex flex-col justify-center mb-10 lg:justify-end lg:flex-row px-5 lg:px-0")
 
         for div in divs:
             links = div.find_all("a")
@@ -267,77 +265,51 @@ class PinkSaleScrapper(BaseScrapper):
                 else:
                     if href.startswith('/'):
                         continue
-                    website_link = href
+                    website_link = href  # type: ignore
 
         return twitter_link, telegram_link, website_link
-
-    def open_sub_url(self, url: str) -> bool:
-        """
-        Open a sub URL in the driver.
-
-        Args:
-            url: The URL to open.
-
-        Returns:
-            True if the URL was opened successfully, False otherwise.
-        """
-        # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(10)
-
-        # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(10)
-
-        try:
-            # Attempt to open the URL
-            self.driver.get(url)
-            time.sleep(10)
-            return True
-        except Exception as e:
-            # Log any exceptions during URL opening
-            self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
-
-        return False
-
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    scraper = PinkSaleScrapper(logging)
+    scraper = SolaniumScrapper(logging)
     status = scraper.start_driver()
     
     if status:
         links = scraper.get_links()
+        names = scraper.get_names()
+        
         total = len(links)
         print('Total Links: ', total)
         idx = 0
-        for link in links:
-            print(link)
-            status = scraper.open_sub_url(url=link)
-            if status == False:
-                continue # Skip to next data
-            
-            token = scraper.extract_data()
-            if token is None:
-                continue
-            
-            print(idx, ' ....................................')
-            print("Name: ", token.name)
-            print("Symbol: ", token.symbol)
-            print("Token Address: ", token.token_address)
-            print("Supply: ", token.supply)
-            print("Total Supply: ", token.supply)
-            print("Soft Cap: ", token.soft_cap)
-            print("Start Time: ", token.start_time)
-            print("End Time: ", token.end_time)
-            print("Lockup Time: ", token.lockup_time)
-            print("Rate: ", token.rate)
-            print("Raised: ", token.raised)
-            print("Chain: ", token.chain)
-            print("Web: ", token.web)
-            print("Twitter: ", token.twitter)
-            print("Telegram: ", token.telegram)
-            print('......................................')
-            idx = idx + 1
+        if len(names) == len(links):
+            for name, link in zip(names, links):
+                status = scraper.open_sub_url(url=link)
+                if status == False:
+                    continue # Skip to next data
+                
+                token = scraper.extract_data(name)
+                if token is None:
+                    continue
+                
+                print(idx, ' ....................................')
+                print("Name: ", token.name)
+                print("Symbol: ", token.symbol)
+                print("Token Address: ", token.token_address)
+                print("Supply: ", token.supply)
+                print("Total Supply: ", token.supply)
+                print("Soft Cap: ", token.soft_cap)
+                print("Start Time: ", token.start_time)
+                print("End Time: ", token.end_time)
+                print("Lockup Time: ", token.lockup_time)
+                print("Rate: ", token.rate)
+                print("Raised: ", token.raised)
+                print("Chain: ", token.chain)
+                print("Web: ", token.web)
+                print("Twitter: ", token.twitter)
+                print("Telegram: ", token.telegram)
+                print('......................................')
+                idx = idx + 1
             #scraper.extract_token_info(link)
 
     

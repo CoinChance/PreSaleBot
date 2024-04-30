@@ -1,19 +1,22 @@
 
-
+import re
 import time
+import math
 import logging
 from typing import Optional, Dict, Tuple, List
 
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support import expected_conditions as EC
+
 from bs4 import BeautifulSoup
 
-from TokenData import TokenData
-from BaseScrapper import BaseScrapper
-from Chains import Chains
+from src.TokenData import TokenData
+from src.BaseScrapper import BaseScrapper
+from src.Chains import Chains
 
 class SolanaPadScrapper(BaseScrapper):
     def __init__(self, logging: logging.Logger) -> None:
@@ -31,12 +34,12 @@ class SolanaPadScrapper(BaseScrapper):
         try:
             self.driver.get(self._url)
             WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(10)
+            time.sleep(3)
 
             live_menu = self.driver.find_element(By.XPATH, "//li[contains(@data-menu-id, 'live')]")
             live_menu.click()
 
-            time.sleep(10)
+            time.sleep(3)
             # Scroll down to load more data
             # scroll_pause_time = 5  # Adjust as needed
 
@@ -45,7 +48,7 @@ class SolanaPadScrapper(BaseScrapper):
                 self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
                 time.sleep(5)
 
-            time.sleep(5)
+            #time.sleep(5)
             self.status = True
             self._extract_links()
 
@@ -155,38 +158,91 @@ class SolanaPadScrapper(BaseScrapper):
             for link in links:
                 href = link.get("href")
                 if "twitter.com" in href or "x.com" in href:
+                    if "intent/tweet?" in href:
+                        continue
                     twitter_link = href
                 elif "t.me" in href or "telegram.me" in href:
+                    if "share/msg" in href:
+                        continue
                     telegram_link = href
                 elif (
-                    "discord.com" in href
+                    "discord" in href
                     or "facebook.com" in href
                     or "github.com" in href
                     or "reddit.com" in href
                     or "medium.com" in href
                     or "youtube.com" in href
                     or "instagram.com" in href
+                    or "whatsapp.com" in href
+                    or "linkedin.com" in href
                 ):
                     continue
                 else:
+                    if href.startswith('/'):
+                        continue
                     website_link = href
 
         return name, twitter_link, telegram_link, website_link
 
-    def _extract_total_supply(self):
-        # Find the element you want to hover over
-        element = self.driver.find_element_by_xpath("//canvas[@class='text-xl']")
+    # def _extract_total_supply(self) -> Optional[List[str]]:
+    #     """Extract the total supply from the canvas element."""
+    #     supply: List[str] = []
+    #     try:
+    #         # Find the element you want to hover over
+    #         element = self.driver.find_element(By.XPATH, "//canvas[@class='text-xl']")
+    #         self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
 
-        # Create an ActionChains object
-        action_chains = ActionChains(self.driver)
+    #         canvas: WebElement = self.driver.find_element(By.XPATH, "//canvas[@class='text-xl']")
+    #         radius = canvas.size['width'] / 2 - 5
+    #         print('Radius: ', radius)
+            
+    #         angle_increment = 5
+    #         num_steps = 360 // angle_increment
+            
 
-        # Move the mouse to the element
-        action_chains.move_to_element(element).perform()
+    #         action_chains = ActionChains(self.driver)
+    #         for i in range(num_steps):
+    #             angle = i * angle_increment
+    #             new_x = radius * math.cos(math.radians(angle))
+    #             new_y = radius * math.sin(math.radians(angle))
+    #             print(new_x, new_y)
+
+    #             action_chains.move_to_element_with_offset(canvas, new_x, new_y).perform()
+    #             time.sleep(2)  # Adjust sleep time as needed
+    #             #WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[@class='tooltip']")))
+    #             tooltip: WebElement = self.driver.find_element(By.XPATH, "//div[@class='tooltip']")
+    #             if tooltip.text not in supply:
+    #                 supply.append(tooltip.text)
+
+    #     except Exception as e:
+    #         self.logging.error(f"Error: {e}")
+    #         return None
+
+    #     print("Supply: ", supply)
+    #     if supply is not None:
+    #         return supply # sum(float(supply_str) for supply_str in supply
         
-        tooltip = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[@class='tooltip']")))
+    #     return supply
 
-        # Extract the tooltip text
-        tooltip_text = tooltip.text
+    def _extract_raised(self) -> Optional[str]:
+        """Extract the raised amount from the canvas element."""
+        # Define regular expressions to capture the values
+        percentage_regex = r'(\d+\.\d+%)'  # Matches the percentage (e.g., 16.811%)
+        Raised = None
+        try:
+            soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+            divs = soup.find_all('div', class_="mt-4 bg-[#21283A] p-4 rounded-2xl")
+            for div in divs:
+                if '%' in div.text:
+                    percentage_match = re.search(percentage_regex, div.text)
+                    Raised = percentage_match.group(1) if percentage_match else None
+                    return Raised
+            
+                       
+        except Exception as e:
+            self.logging.error(f"Error: {e}")
+            return None
+        return Raised
 
     def extract_data(self):
         try:
@@ -194,6 +250,12 @@ class SolanaPadScrapper(BaseScrapper):
             proj_chain: Optional[str] = None  # The chain name for the project
             token_info: Dict[str, str] = {}  # The dictionary to store all the token data
             
+            # supply = self._extract_total_supply()
+            Raised = self._extract_raised()
+            if Raised is not None:
+                token_info['Raised'] = Raised
+          
+
             # Find all divs with class "transition-all"
             divs = soup.find_all(class_="text-xs lg:text-base flex flex-col gap-4 mt-6")
             

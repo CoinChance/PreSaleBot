@@ -13,10 +13,10 @@ from src.BaseScrapper import BaseScrapper
 from src.Chains import Chains
 
 
-class PinkSaleScrapper(BaseScrapper):
+class DxSaleScrapper(BaseScrapper):
     def __init__(self, logging: logging.Logger) -> None:
         super().__init__(logging)
-        self._url = "https://www.pinksale.finance/launchpads" # Base URL for pinksale launchpads
+        self._url = "https://www.dx.app/dxsale" # Base URL for pinksale launchpads
         self._links: List[str] = [] # List of links scrapped from pinksale launchpads
         self.scroll_downs = 10  # Maximum Number of times to scroll down
 
@@ -27,14 +27,7 @@ class PinkSaleScrapper(BaseScrapper):
             self.driver.get(self._url)
             WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             time.sleep(10)
-            # Scroll down to load more data
-            scroll_pause_time = 5  # Adjust as needed
             
-            for _ in range(self.scroll_downs):
-                # Scroll down by simulating the "END" key press
-                self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-                time.sleep(scroll_pause_time)
-            time.sleep(5)
             self.status = True
             self._extract_links()
         except Exception as ex:
@@ -53,15 +46,15 @@ class PinkSaleScrapper(BaseScrapper):
             True if the URL was opened successfully, False otherwise.
         """
         # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(10)
+        self.driver.set_page_load_timeout(30)
 
         # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(10)
+        self.driver.implicitly_wait(30)
 
         try:
             # Attempt to open the URL
             self.driver.get(url)
-            time.sleep(10)
+            #time.sleep(10)
             return True
         except Exception as e:
             # Log any exceptions during URL opening
@@ -92,44 +85,63 @@ class PinkSaleScrapper(BaseScrapper):
             A TokenData object containing all the extracted data, or None if there is an error.
         """
         try:
-            the_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+            soup = BeautifulSoup(self.driver.page_source, 'html.parser')
             proj_chain: Optional[str] = None  # The chain name for the project
             token_info: Dict[str, str] = {}  # The dictionary to store all the token data
 
-            # Find all divs with class "transition-all"
-            divs = the_soup.find_all(class_="transition-all")
-            for div in divs:  # Loop through each div
+            # name
+            try:
+                # Find all divs with class "MuiTypography-root MuiTypography-h3 css-vwfc3z"
+                # Extract Name
+                divs = soup.find_all(class_="MuiTypography-root MuiTypography-h3 css-vwfc3z")
+                name = divs[0].text
+                if name is not None:
+                    token_info["Name"] = name                    
+            except Exception as ex:
+                self.logging.error("Exception (%s) occured while extracting Name", ex)
+            
+            # Symbol
+            try:
+                # Find all divs with class "MuiTypography-root MuiTypography-h3 css-vwfc3z"
+                # Extract Symbol
+                divs = soup.find_all(class_="MuiTypography-root MuiTypography-h6 css-eezjbm")
+                symbol = divs[0].text
+                if symbol is not None:
+                    token_info["Symbol"] = symbol                    
+            except Exception as ex:
+                self.logging.error("Exception (%s) occured while extracting Symbol", ex)
+
+            # Raised
+            try:
+                raised_info = soup.find('p', class_='MuiTypography-root MuiTypography-h5 css-oh7pm8')
+                if raised_info:
+                   token_info["Raised"] = raised_info.text
+            except Exception as ex:
+                self.logging.error("Exception (%s) occured while extracting Raised", ex)
+
+            desired_tags = ["Presale address", "Token address", "Soft Cap", "Total Supply"]            
+            # Presale Address
+            for tag in desired_tags:
                 try:
-                    # Extract the label and value from each div
-                    label = div.find(class_="flex-1 capitalize")
-                    if label is None:
-                        continue  # Skip this div if the label is not found
-                    label = label.text.strip()  # Remove any whitespace from the label
-                    value = div.find(class_="break-all")
-                    if value is None:
-                        continue  # Skip this div if the value is not found
-                    value = value.text.strip()  # Remove any whitespace from the value
-
-                    if label == "Address":
-                        # Split the value at "Do not" and take the first segment
-                        value = value.split('Do not ')[0].strip()
-                    # If this is the first label-value pair with the "Address" label,
-                    # extract the chain name from the value
-                    if proj_chain is None:
-                        proj_chain = self._extract_chain(label, value)
-
-                    # Store the label and value in the token_info dictionary
-                    token_info[label] = value
+                    presale_address_label = soup.find('span', string=tag)
+                    if presale_address_label:
+                        presale_address_value = presale_address_label.find_next('span', class_='MuiTypography-subtitle2')
+                        if presale_address_value:
+                            token_info[tag] = presale_address_value.text # Extract Presale Address
                 except Exception as ex:
-                    self.logging.error("Error extracting data: %s", ex)
+                    print("Exception (%s) occured while extracting Presale Address", ex)
+                
 
-            if proj_chain is None:
-                self.logging.error("Chain not found")
-                return None  # If the chain is not found, return None
-            else:
-                token_info['Chain'] = proj_chain  # Otherwise, set the chain name in the token_info dictionary
-
-            twitter, telegram, website = self._extract_social_media_info(the_soup, token_info['Name'])
+          
+            # if proj_chain is None:
+            #     self.logging.error("Chain not found")
+            #     return None  # If the chain is not found, return None
+            # else:
+            #     token_info['Chain'] = proj_chain  # Otherwise, set the chain name in the token_info dictionary
+            
+            token_info['Chain'] = 'DEX'
+            token_info['Status'] = "Sale live"
+            twitter, telegram, website = self._extract_social_media_info(soup)
             if twitter is None:
                 self.logging.error("Twitter link not found")
                 token_info['Twitter'] = "Not Available"  # If the Twitter link is not found, set the Twitter key to "Not Available"
@@ -149,7 +161,7 @@ class PinkSaleScrapper(BaseScrapper):
                 token_info['Website'] = website  # Otherwise, set the website key to the website link
 
             # Adapt the dictionary to TokenData class
-            return TokenData.pinksale_adapter(token_info)  # If there is no error, return the token data
+            return TokenData.dexsale_adapter(token_info)  # If there is no error, return the token data
         except Exception as e:
             self.logging.error("Error: %s", e)
             return None  # If there is an error, return None
@@ -161,29 +173,50 @@ class PinkSaleScrapper(BaseScrapper):
         Returns:
             The total number of links extracted.
         """
+
+        divs = self.driver.find_elements(By.CLASS_NAME, "MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-184a75u")
+        # Find the dropdown element by its ID, name, XPath, or CSS selector
+        dropdown_element = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//label[contains(text(), 'Filter by')]/following-sibling::div")))
+        dropdown_element.click()
+
+        dropdown_items = WebDriverWait(self.driver, 10).until(EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']/li[@role='option']")))
+        for item in dropdown_items:                
+            print(item.text.strip())
+            if item.text.strip() == 'Running':
+                item.click()
+                break
+        
+        time.sleep(2)
+        # Scroll down to load more data
+        scroll_pause_time = 5  # Adjust as needed
+        
+        for _ in range(self.scroll_downs):
+            # Scroll down by simulating the "END" key press
+            self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+            time.sleep(scroll_pause_time)
+        time.sleep(5)
+
         soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-        divs = soup.find_all(class_="p-2")
+        divs = soup.find_all(class_="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation2 MuiCard-root p-0 relative w-full max-w-[350px] rounded-lg css-1vpe3e2")
         links_count = 0
         live_count = 0
         for div in divs:
             print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
             # Find all links in the div
-            element = div.find(string='Sale live')
-            if element is not None:
-                live_count += 1
-                links = div.find_all('a')
-                print('----------------------------------------------')
-                for link in links:
-                    # Extract the href attribute
-                    href = link.get('href')
-                    print('href: ', href)
-                    if href.startswith('/launchpad/') or href.startswith('/solana/launchpad/'):
-                        link = 'https://www.pinksale.finance' + href
-                        self._links.append(link)
-                        links_count += 1
-                        self.logging.info('URL: %s', link)
-            else:
-                self.logging.debug('Sale Not Live')
+            
+            live_count += 1
+            links = div.find_all('a')
+            print('----------------------------------------------')
+            for link in links:
+                # Extract the href attribute
+                href = link.get('href')
+                print('href: ', href)
+                if href.startswith('/dxsale/'):
+                    link = "https://www.dx.app" + href
+                    self._links.append(link)
+                    links_count += 1
+                    self.logging.info('URL: %s', link)
+            
         self.logging.info('Total Live Projects: %d, Scrapped Links: %d' , live_count, links_count)
         return links_count
 
@@ -221,8 +254,7 @@ class PinkSaleScrapper(BaseScrapper):
     
     def _extract_social_media_info(
         self,
-        soup: BeautifulSoup,
-        name: str,
+        soup: BeautifulSoup       
     ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
         Extract social media links from the soup.
@@ -238,7 +270,7 @@ class PinkSaleScrapper(BaseScrapper):
         telegram_link: Optional[str] = None
         website_link: Optional[str] = None
 
-        divs = soup.find_all("div", class_="flex items-center gap-2.5 text-gray-500 mt-2 justify-center")
+        divs = soup.find_all("div", class_="MuiBox-root css-qokrjo")
 
         for div in divs:
             links = div.find_all("a")
@@ -302,7 +334,7 @@ class PinkSaleScrapper(BaseScrapper):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    scraper = PinkSaleScrapper(logging)
+    scraper = DxSaleScrapper(logging)
     status = scraper.start_driver()
     
     if status:
