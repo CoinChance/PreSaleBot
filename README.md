@@ -112,3 +112,6 @@ docker exec -it presalebot psql -U postgres -d presalebot
 ```
 docker-compose up --build
 ```
+### Docker Run
+
+sudo docker run  --rm -p $PORT:5432 -v $PWD/db:/var/lib/postgresql/data -v $PWD/db/init.sql:/docker-entrypoint-initdb.d/init.sql -v $PWD/logs:/app/logs --network=host coinchancebot

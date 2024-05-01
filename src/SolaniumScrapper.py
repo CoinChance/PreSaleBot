@@ -15,73 +15,82 @@ from src.Chains import Chains, Alternate_Names
 
 class SolaniumScrapper(BaseScrapper):
     def __init__(self, logging: logging.Logger) -> None:
-        super().__init__(logging)
-        self._url = "https://www.solanium.io/#live-projects" # Base URL for pinksale launchpads
-        self._links: List[str] = [] # List of links scrapped from pinksale launchpads
-        self._name: List[str] = []
-        self.symbol: List[str] = []
-        self.scroll_downs = 10  # Maximum Number of times to scroll down
+        """
+        Initialize the SolaniumScrapper class.
 
-    def start_driver(self) -> bool:
+        This function is the constructor of the class. It is called when an
+        instance of the class is created. It initializes the superclass
+        BaseScrapper with the logging object, and sets the base URL for
+        Solanium launchpads. It also initializes two empty lists to store
+        the names and symbols of the Solanium tokens.
+
+        Arguments:
+            logging: The Python logger to use for logging messages.
+        """
+        super().__init__(logging)
+        self.logging.debug("Initializing the SolaniumScrapper class.")
+        self._url = "https://www.solanium.io/#live-projects"  # Base URL for Solanium launchpads
+        self.logging.debug("Set the base URL to %s", self._url)
+        self._name: List[str] = []  # List to store the names of Solanium tokens
+        self.logging.debug("Initialized the list to store the names of Solanium tokens.")
+        #self.symbol: List[str] = []  # List to store the symbols of Solanium tokens
+        self.logging.debug("Initialized the list to store the symbols of Solanium tokens.")
+
+    def start(self) -> bool:
+        """Start the Selenium webdriver and navigate to the Solanium URL.
+
+        This function is used to start the webdriver and navigate to the Solanium
+        URL. It calls the superclass function to start the webdriver, and then
+        tries to open the URL. If the open was successful, it scrolls down the
+        page to load more data, and then extracts the links from the page.
+        It returns True if the URL was opened successfully, and False otherwise.
+        """
         super().start_driver()
 
         try:
-            self.driver.get(self._url)
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(10)
+            if super().get_status():  # Check if the webdriver is running
+                self.logging.debug("Starting to open URL %s", self._url)
+                super().open_url(self._url)  # Open the URL
 
-            # Scroll down to load more data
-            scroll_pause_time = 2  # type: int
-            for _ in range(self.scroll_downs):
-                # Scroll down by simulating the "END" key press
-                self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-                time.sleep(scroll_pause_time)
+                # Scroll down to load more data                
+                self.logging.debug("Scrolling down to load more data")
+                for _ in range(self.scroll_downs):  # Scroll down a number of times
+                    # Scroll down by simulating the "END" key press
+                    self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+                    self.logging.debug("Scrolling down (%s/%s)", _ + 1, self.scroll_downs)
+                    time.sleep(self.scroll_pause_time)
 
-            time.sleep(5)
-            self.status = True
-            self._extract_links()
+                self.logging.debug("Waiting for %s seconds before extracting links", self.timeout)
+                time.sleep(self.timeout)  # Wait for some time
+                self.status = True  # Mark the status as True
+                self._extract_links()  # Extract the links from the page
 
-        except Exception as ex:
-            self.status = False
-            self.logging.error("Exception (%s) occured while Opening URL %s", ex, self._url)
+        except Exception as ex:  # Catch any exception that occurs
+            self.status = False  # Mark the status as False
+            self.logging.error("Exception (%s) occured while Opening URL %s", ex, self._url)  # Log the error
 
-        return self.status
-
-    def open_sub_url(self, url: str) -> bool:
-        """Open a sub URL in the driver.
-
-        Args:
-            url (str): The URL to open.
-
-        Returns:
-            bool: True if the URL was opened successfully, False otherwise.
-        """
-        # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(10)
-        # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(10)
-
-        try:
-            self.driver.get(url)
-            time.sleep(10)
-        except Exception as e:
-            self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
-            return False
-
-        return True
-
-    def get_Status(self):
-        return self.status
-    
-    def get_links(self):
-        return self._links
+        return self.status  # Return the status
     
     def get_names(self):
         return self._name
     
     @classmethod
     def map_alternate_name(cls, name: str) -> str:
-        """Map alternate names to their original names."""
+        """Map alternate names to their original names.
+
+        This method is used to map alternate names of Solana chains to their
+        original names. The alternate names are stored in the Alternate_Names
+        dictionary. The method first converts both the name and the keys of the
+        dictionary to lowercase, to make the comparison case-insensitive.
+        If the lowercase name is found in the list of lowercase chain names,
+        it returns the name as is, as it is already a valid chain name.
+        If it's not found, the method iterates over the Alternate_Names
+        dictionary and checks if the name matches any of the alternate names.
+        If it matches, it returns the original name for that alternate name.
+        If it doesn't match any of the alternate names, it returns the name
+        as is, as it's not an alternate name, and it's likely a valid chain
+        name.
+        """
         chains_lower = [chain.lower() for chain in Chains]
         name_lower = name.lower()
         if name_lower in chains_lower:
@@ -197,14 +206,14 @@ class SolaniumScrapper(BaseScrapper):
             if _name_ is not None:
                 name = _name_
 
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")            
+            #print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")            
             live_count += 1
             links = div.find_all("a")
-            print("----------------------------------------------")
+            #print("----------------------------------------------")
             for link in links:
                 # Extract the href attribute
                 href = link.get("href")
-                print("href: ", href)
+                #print("href: ", href)
                 if href.startswith("/project/"):
                     link = "https://www.solanium.io" + href
                     self._links.append(link)
@@ -238,34 +247,7 @@ class SolaniumScrapper(BaseScrapper):
 
         divs = soup.find_all("div", class_="flex flex-col justify-center mb-10 lg:justify-end lg:flex-row px-5 lg:px-0")
 
-        for div in divs:
-            links = div.find_all("a")
-            for link in links:
-                href = link.get("href")
-                if "twitter.com" in href or "x.com" in href:
-                    if "intent/tweet?" in href:
-                        continue
-                    twitter_link = href
-                elif "t.me" in href or "telegram.me" in href:
-                    if "share/msg" in href:
-                        continue
-                    telegram_link = href
-                elif (
-                    "discord" in href
-                    or "facebook.com" in href
-                    or "github.com" in href
-                    or "reddit.com" in href
-                    or "medium.com" in href
-                    or "youtube.com" in href
-                    or "instagram.com" in href
-                    or "whatsapp.com" in href
-                    or "linkedin.com" in href
-                ):
-                    continue
-                else:
-                    if href.startswith('/'):
-                        continue
-                    website_link = href  # type: ignore
+        twitter_link, telegram_link, website_link = super().social_media(divs)
 
         return twitter_link, telegram_link, website_link
 
@@ -273,7 +255,7 @@ class SolaniumScrapper(BaseScrapper):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     scraper = SolaniumScrapper(logging)
-    status = scraper.start_driver()
+    status = scraper.startr()
     
     if status:
         links = scraper.get_links()
@@ -284,7 +266,7 @@ if __name__ == "__main__":
         idx = 0
         if len(names) == len(links):
             for name, link in zip(names, links):
-                status = scraper.open_sub_url(url=link)
+                status = scraper.open_url(url=link)
                 if status == False:
                     continue # Skip to next data
                 

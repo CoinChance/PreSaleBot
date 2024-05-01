@@ -20,104 +20,99 @@ from src.Chains import Chains
 
 class SolanaPadScrapper(BaseScrapper):
     def __init__(self, logging: logging.Logger) -> None:
-        super().__init__(logging)
-        self._url: str = "https://solanapad.io/launchpad-list"  # type: ignore
-        self._links: List[str] = []  # type: ignore
-        self.scroll_downs: int = 10
-      
-             
+        """
+        Initialize the SolanaPadScrapper class.
 
+        This function is the constructor of the class. It is called when an
+        instance of the class is created. It initializes the superclass
+        BaseScrapper with the logging object, and sets the base URL for
+        SolanaPad launchpads.
+
+        Arguments:
+            logging: The Python logger to use for logging messages.
+        """
+        super().__init__(logging)
+        self.logging.debug("Initializing the SolanaPadScrapper class.")
+        self._url = "https://solanapad.io/launchpad-list"
+        self.logging.debug("Set the base URL to %s", self._url)
+             
     def start_driver(self) -> bool:
         """Start the Selenium driver and return its status."""
         super().start_driver()
 
+        status: bool = False
         try:
-            self.driver.get(self._url)
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(3)
+            if super().get_status():
+                self.driver.get(self._url)
 
-            live_menu = self.driver.find_element(By.XPATH, "//li[contains(@data-menu-id, 'live')]")
-            live_menu.click()
+                live_menu: WebElement = self.driver.find_element(By.XPATH, "//li[contains(@data-menu-id, 'live')]")
+                live_menu.click()
 
-            time.sleep(3)
-            # Scroll down to load more data
-            # scroll_pause_time = 5  # Adjust as needed
+                WebDriverWait(self.driver, self.timeout).until(EC.visibility_of_element_located((By.TAG_NAME, "body")))
 
-            for _ in range(self.scroll_downs):
-                # Scroll down by simulating the "END" key press
-                self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-                time.sleep(5)
+                for _ in range(self.scroll_downs):
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(self.timeout)
 
-            #time.sleep(5)
-            self.status = True
-            self._extract_links()
-
+                self._extract_links()
+                status = True
+                self.logging.info("Successfully opened URL %s", self._url)
         except Exception as ex:
-            self.status = False
             self.logging.error("Exception (%s) occured while Opening URL %s", ex, self._url)
 
-        return self.status
-    
+        return status
+
     def _extract_links(self) -> int:
         """
-        Extract links from PinkSale website.
+        Extract links from SolanaPad website.
+
+        This function iterates over all divs that have a class 'py-5 px-3 lg:p-6
+        bg-[#18182B] rounded-2xl flex flex-col gap-4 text-base' and finds
+        the one that contains the string 'View more'. This indicates that the
+        div is showing information about a live project. After finding the
+        live project div, it extracts all links from that div and finds the
+        one that starts with '/launchpad-list/'. That link is then appended
+        to self._links and the total number of links extracted is returned.
 
         Returns:
             The total number of links extracted.
         """
         soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        # Find all divs with the class name 'py-5 px-3 lg:p-6 bg-[#18182B]
+        # rounded-2xl flex flex-col gap-4 text-base'
         divs = soup.find_all("div", class_="py-5 px-3 lg:p-6 bg-[#18182B] rounded-2xl flex flex-col gap-4 text-base")
-        links_count = 0
-        live_count = 0
+        links_count: int = 0
+        live_count: int = 0
+
         for div in divs:
+            # Find the element in the div that contains the string 'View more'
             element = div.find(string='View more')
+            # If no such element was found, skip to the next div
             if element is None:
                 continue
+            # Increment the live_count variable to keep track of the number of
+            # live projects found
             live_count += 1
+
             print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-            links = div.find_all('a')
             # Find all links in the div
+            links = div.find_all('a')
+
             for link in links:
                 # Extract the href attribute
                 href = link.get('href')
                 print('href: ', href)
+                # If the href starts with '/launchpad-list/', it is the link we
+                # are looking for, so append it to self._links
                 if href.startswith('/launchpad-list/'):
-                    link = 'https://solanapad.io' + href
+                    link = f'https://solanapad.io{href}'
                     self._links.append(link)
                     links_count += 1
                     self.logging.info('URL: %s', link)
                     break
-            
-        self.logging.info('Total Live Projects: %d, Scrapped Links: %d' , live_count, links_count)
+
+        self.logging.info('Total Live Projects: %d, Scrapped Links: %d', live_count, links_count)
         return links_count
-
-
-    def open_sub_url(self, url: str) -> bool:
-        """
-        Open a sub URL in the driver.
-
-        Args:
-            url: The URL to open.
-
-        Returns:
-            True if the URL was opened successfully, False otherwise.
-        """
-        # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(10)
-
-        # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(10)
-
-        try:
-            # Attempt to open the URL
-            self.driver.get(url)
-            time.sleep(10)
-            return True
-        except Exception as e:
-            # Log any exceptions during URL opening
-            self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
-
-        return False
 
     def _extract_social_media_info(
         self,
@@ -138,10 +133,7 @@ class SolanaPadScrapper(BaseScrapper):
         name: Optional[str] = None
 
         #divs = soup.find_all("div", class_="flex items-center gap-2.5 text-gray-500 mt-2 justify-center")
-        divs = soup.find_all("div", class_="flex flex-col lg:flex-row justify-between gap-2 lg:gap-5")
-
-        
-            
+        divs = soup.find_all("div", class_="flex flex-col lg:flex-row justify-between gap-2 lg:gap-5")   
 
         for div in divs:
             if name is None:
@@ -177,72 +169,62 @@ class SolanaPadScrapper(BaseScrapper):
                     or "linkedin.com" in href
                 ):
                     continue
+                elif href.startswith('/'):
+                    continue
                 else:
-                    if href.startswith('/'):
-                        continue
                     website_link = href
 
         return name, twitter_link, telegram_link, website_link
 
-    # def _extract_total_supply(self) -> Optional[List[str]]:
-    #     """Extract the total supply from the canvas element."""
-    #     supply: List[str] = []
-    #     try:
-    #         # Find the element you want to hover over
-    #         element = self.driver.find_element(By.XPATH, "//canvas[@class='text-xl']")
-    #         self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
-
-    #         canvas: WebElement = self.driver.find_element(By.XPATH, "//canvas[@class='text-xl']")
-    #         radius = canvas.size['width'] / 2 - 5
-    #         print('Radius: ', radius)
-            
-    #         angle_increment = 5
-    #         num_steps = 360 // angle_increment
-            
-
-    #         action_chains = ActionChains(self.driver)
-    #         for i in range(num_steps):
-    #             angle = i * angle_increment
-    #             new_x = radius * math.cos(math.radians(angle))
-    #             new_y = radius * math.sin(math.radians(angle))
-    #             print(new_x, new_y)
-
-    #             action_chains.move_to_element_with_offset(canvas, new_x, new_y).perform()
-    #             time.sleep(2)  # Adjust sleep time as needed
-    #             #WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[@class='tooltip']")))
-    #             tooltip: WebElement = self.driver.find_element(By.XPATH, "//div[@class='tooltip']")
-    #             if tooltip.text not in supply:
-    #                 supply.append(tooltip.text)
-
-    #     except Exception as e:
-    #         self.logging.error(f"Error: {e}")
-    #         return None
-
-    #     print("Supply: ", supply)
-    #     if supply is not None:
-    #         return supply # sum(float(supply_str) for supply_str in supply
-        
-    #     return supply
-
     def _extract_raised(self) -> Optional[str]:
-        """Extract the raised amount from the canvas element."""
-        # Define regular expressions to capture the values
+        """
+        Extract the raised amount from the canvas element.
+
+        This function tries to find a <div> element with the class "mt-4 bg-[#21283A] p-4 rounded-2xl"
+        and searches for a percentage inside its text. If a percentage is found, it searches for
+        a match using the regular expression '(\d+\.\d+%)', which captures the percentage into a group.
+        If a match is found, it returns the first (and only) group of the match, which is the captured
+        percentage. Otherwise, it returns None.
+
+        Arguments:
+            None
+
+        Returns:
+            The percentage raised (e.g., "16.811%"), or None if the percentage could not be found.
+        """
+        # Define regular expression to capture the percentage value
         percentage_regex = r'(\d+\.\d+%)'  # Matches the percentage (e.g., 16.811%)
+
+        # Initialize variable to store the percentage
         Raised = None
+
         try:
+            # Parse the HTML page source using BeautifulSoup
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+            # Find all <div> elements with the specified classes
             divs = soup.find_all('div', class_="mt-4 bg-[#21283A] p-4 rounded-2xl")
+
+            # Iterate through each <div> element
             for div in divs:
+
+                # Check if the text of the <div> element contains a percentage
                 if '%' in div.text:
+
+                    # Search for a match using the regular expression
                     percentage_match = re.search(percentage_regex, div.text)
+
+                    # If a match is found, extract the percentage from the match
                     Raised = percentage_match.group(1) if percentage_match else None
+
+                    # Return the percentage if it was found, or None if not found
                     return Raised
-            
-                       
+
         except Exception as e:
+            # Log the error if there is an exception
             self.logging.error(f"Error: {e}")
-            return None
-        return Raised
+
+        # Return None if the code reaches this point
+        return None
 
     def extract_data(self):
         try:
@@ -365,50 +347,7 @@ class SolanaPadScrapper(BaseScrapper):
 
         return result, symbol
     
-    def extract_token_info_strategy1(self, url):
-
-        super().start_driver()
-        # status, live_status = self.open_sub_url(url=url, xpath="/html/body/div/div/div[3]/main/div/div/div[2]/div[2]/div[1]/div[3]/div[2]/div[2]")
-        
-        # if status == False:
-        #     return data
-        
-        data = TokenData()
-        try:            
-            self.sec_driver.get(url)
-            self.sec_driver.implicitly_wait(10)           
-            status = True
-        except Exception as ex:
-            status = False
-            self.logging.error("Exception (%s) occured while Opening URL %s", ex, url)
-
-        if status == True:
-            
-            data.status = True
-            data.symbol = super().extract_data(tag='Symbol', xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/h3", extract_type='text')                
-            data.live_status = super().extract_data(tag='Live Status', xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/div[2]/div[2]/span", extract_type='text')
-            data.web = super().extract_data(tag='URL', xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div/a[1]", extract_type='url')
-            data.twitter = super().extract_data(tag='Twitter', xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div/a[2]", extract_type='url')
-            data.telegram = super().extract_data(tag='Telegram', xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div/a[3]", extract_type='url')
-           
-            data.rate       = super().extract_data(tag="Current Rate\n",      xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[1]", extract_type='text').split('\n')[1]
-            data.start_time  = super().extract_data(tag="Start Time\n", xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[2]", extract_type='text').split('\n')[1]
-            data.end_time    = super().extract_data(tag="End Time\n",   xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[3]", extract_type='text').split('\n')[1]
-            data.soft_cap    = super().extract_data(tag="Soft Cap\n",   xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[4]", extract_type='text').split('\n')[1]
-            
-            data.raised = super().extract_data(tag="\n", xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[2]/div/div[2]/div[3]/div/div/span[1]", extract_type='text_split').split('\n')[0]   
-            data.token_address = super().extract_data(tag="Token Address\n", xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[9]/div/span[1]", extract_type='text')
-            data.pool_address = super().extract_data(tag="Pool Address\n", xpath="/html/body/div/div[1]/div[2]/main/div/div[2]/div[2]/div[1]/div[2]/ul/li[10]/div/span[1]", extract_type='text')
-        return data
-            
-    def get_Status(self):
-        return self.status
-    
-    def get_links(self):
-        return self._links
-
-
-
+   
 if __name__ == "__main__":
     scraper = SolanaPadScrapper(logging)
     status = scraper.start_driver()

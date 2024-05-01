@@ -14,60 +14,43 @@ from src.Chains import Chains
 
 
 class DxSaleScrapper(BaseScrapper):
-    def __init__(self, logging: logging.Logger) -> None:
-        super().__init__(logging)
-        self._url = "https://www.dx.app/dxsale" # Base URL for pinksale launchpads
-        self._links: List[str] = [] # List of links scrapped from pinksale launchpads
-        self.scroll_downs = 10  # Maximum Number of times to scroll down
+    def __init__(self, logging: logging.Logger) -> None:  
+        """
+        Initialize the DxSaleScrapper class.
 
-    def start_driver(self) -> bool:
-        super().start_driver()
+        This function initializes the superclass BaseScrapper with the logging object,
+        and sets the base URL for DxSale launchpads.
 
+        Arguments:
+            logging: The Python logger to use for logging messages.
+        """
+        super().__init__(logging)      
+        self._url = "https://www.dx.app/dxsale" # Base URL for DxSale launchpads
+        self.logging.debug("Set the base URL to %s", self._url)
+
+    def start(self) -> bool:
+        """
+        Starts the Selenium driver, opens the DxSale website, and extracts links.
+        
+        This function returns True if the operation was successful, and False otherwise.
+        If there is an exception, the function logs the error and returns False.
+        """
+        super().start_driver()    
+           
         try:
-            self.driver.get(self._url)
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(10)
-            
-            self.status = True
-            self._extract_links()
+            # Check if the driver is running
+            if super().get_status():
+                # Open the DxSale website
+                super().open_url(self._url)
+                # Extract links from the page
+                self._extract_links()
         except Exception as ex:
+            # If there is an exception, log it and set the status to False
             self.status = False
             self.logging.error("Exception (%s) occured while Opening URL %s", ex, self._url)
-        return self.status      
-    
-    def open_sub_url(self, url: str) -> bool:
-        """
-        Open a sub URL in the driver.
 
-        Args:
-            url: The URL to open.
-
-        Returns:
-            True if the URL was opened successfully, False otherwise.
-        """
-        # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(30)
-
-        # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(30)
-
-        try:
-            # Attempt to open the URL
-            self.driver.get(url)
-            #time.sleep(10)
-            return True
-        except Exception as e:
-            # Log any exceptions during URL opening
-            self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
-
-        return False
-
-    def get_Status(self):
         return self.status
-    
-    def get_links(self):
-        return self._links
-    
+
     def extract_data(self) -> Optional[TokenData]:
         """
         Extract token data from the page source.
@@ -86,28 +69,25 @@ class DxSaleScrapper(BaseScrapper):
         """
         try:
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-            proj_chain: Optional[str] = None  # The chain name for the project
             token_info: Dict[str, str] = {}  # The dictionary to store all the token data
 
-            # name
+            # Name
             try:
-                # Find all divs with class "MuiTypography-root MuiTypography-h3 css-vwfc3z"
-                # Extract Name
-                divs = soup.find_all(class_="MuiTypography-root MuiTypography-h3 css-vwfc3z")
-                name = divs[0].text
-                if name is not None:
-                    token_info["Name"] = name                    
+                name_element = soup.find('h1', class_='MuiTypography-root MuiTypography-h3 css-vwfc3z')
+                if name_element:
+                    name = name_element.text
+                    if name:
+                        token_info["Name"] = name
             except Exception as ex:
                 self.logging.error("Exception (%s) occured while extracting Name", ex)
-            
+
             # Symbol
             try:
-                # Find all divs with class "MuiTypography-root MuiTypography-h3 css-vwfc3z"
-                # Extract Symbol
-                divs = soup.find_all(class_="MuiTypography-root MuiTypography-h6 css-eezjbm")
-                symbol = divs[0].text
-                if symbol is not None:
-                    token_info["Symbol"] = symbol                    
+                symbol_element = soup.find('h2', class_='MuiTypography-root MuiTypography-h6 css-eezjbm')
+                if symbol_element:
+                    symbol = symbol_element.text
+                    if symbol:
+                        token_info["Symbol"] = symbol
             except Exception as ex:
                 self.logging.error("Exception (%s) occured while extracting Symbol", ex)
 
@@ -115,11 +95,11 @@ class DxSaleScrapper(BaseScrapper):
             try:
                 raised_info = soup.find('p', class_='MuiTypography-root MuiTypography-h5 css-oh7pm8')
                 if raised_info:
-                   token_info["Raised"] = raised_info.text
+                    token_info["Raised"] = raised_info.text
             except Exception as ex:
                 self.logging.error("Exception (%s) occured while extracting Raised", ex)
 
-            desired_tags = ["Presale address", "Token address", "Soft Cap", "Total Supply"]            
+            desired_tags = ["Presale address", "Token address", "Soft Cap", "Total Supply"]
             # Presale Address
             for tag in desired_tags:
                 try:
@@ -129,33 +109,22 @@ class DxSaleScrapper(BaseScrapper):
                         if presale_address_value:
                             token_info[tag] = presale_address_value.text # Extract Presale Address
                 except Exception as ex:
-                    print("Exception (%s) occured while extracting Presale Address", ex)
-                
+                    self.logging.error("Exception (%s) occured while extracting Presale Address", ex)
 
-          
-            # if proj_chain is None:
-            #     self.logging.error("Chain not found")
-            #     return None  # If the chain is not found, return None
-            # else:
-            #     token_info['Chain'] = proj_chain  # Otherwise, set the chain name in the token_info dictionary
-            
             token_info['Chain'] = 'DEX'
             token_info['Status'] = "Sale live"
             twitter, telegram, website = self._extract_social_media_info(soup)
             if twitter is None:
-                self.logging.error("Twitter link not found")
                 token_info['Twitter'] = "Not Available"  # If the Twitter link is not found, set the Twitter key to "Not Available"
             else:
                 token_info['Twitter'] = twitter  # Otherwise, set the Twitter key to the Twitter link
 
             if telegram is None:
-                self.logging.error("Telegram link not found")
                 token_info['Telegram'] = "Not Available"  # If the Telegram link is not found, set the Telegram key to "Not Available"
             else:
                 token_info['Telegram'] = telegram  # Otherwise, set the Telegram key to the Telegram link
 
             if website is None:
-                self.logging.error("Website link not found")
                 token_info['Website'] = "Not Available"  # If the website link is not found, set the website key to "Not Available"
             else:
                 token_info['Website'] = website  # Otherwise, set the website key to the website link
@@ -176,25 +145,23 @@ class DxSaleScrapper(BaseScrapper):
 
         divs = self.driver.find_elements(By.CLASS_NAME, "MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-184a75u")
         # Find the dropdown element by its ID, name, XPath, or CSS selector
-        dropdown_element = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//label[contains(text(), 'Filter by')]/following-sibling::div")))
+        dropdown_element = WebDriverWait(self.driver, self.timeout).until(EC.visibility_of_element_located((By.XPATH, "//label[contains(text(), 'Filter by')]/following-sibling::div")))
         dropdown_element.click()
 
-        dropdown_items = WebDriverWait(self.driver, 10).until(EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']/li[@role='option']")))
-        for item in dropdown_items:                
-            print(item.text.strip())
+        dropdown_items = WebDriverWait(self.driver, self.timeout).until(EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']/li[@role='option']")))
+        for item in dropdown_items:
             if item.text.strip() == 'Running':
                 item.click()
                 break
         
-        time.sleep(2)
-        # Scroll down to load more data
-        scroll_pause_time = 5  # Adjust as needed
+        time.sleep(self.timeout)
+
         
         for _ in range(self.scroll_downs):
             # Scroll down by simulating the "END" key press
             self.driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            time.sleep(scroll_pause_time)
-        time.sleep(5)
+            time.sleep(self.scroll_pause_time)
+        time.sleep(self.timeout)
 
         soup = BeautifulSoup(self.driver.page_source, 'html.parser')
         divs = soup.find_all(class_="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation2 MuiCard-root p-0 relative w-full max-w-[350px] rounded-lg css-1vpe3e2")
@@ -224,22 +191,31 @@ class DxSaleScrapper(BaseScrapper):
         """
         Extract chain from label and value.
 
+        This function first checks if the label contains the string 'Rate' or 'rate'. If it does, it will split the value
+        by spaces and store the resulting list in the variable `words`. It then filters out any words that are not in
+        the `Chains` array, which is a list of known blockchain names. If exactly one blockchain name is found in the
+        value, it is returned as the result.
+
         Args:
             label: The label to check for 'Rate' or 'rate'.
             value: The value to extract the chain from.
 
         Returns:
-            The chain found in the value or None.
+            The chain found in the value or None if no valid chain was found.
         """
         result: Optional[str] = None
 
         # Check if the label contains 'Rate' or 'rate'
         if 'Rate' in label or 'rate' in label:
+            self.logging.debug("The label contains 'Rate' or 'rate'.")
+
             # Split the value by spaces
             words = value.split()
+            self.logging.debug("The value '%s' was split into %s words.", value, words)
 
             # Filter words that are in the chains_array
             chains = [word for word in words if word in Chains]
+            self.logging.debug("Found %s chains in the value: %s", len(chains), chains)
 
             # Check if exactly one chain is found in the value
             if len(chains) == 1:
@@ -254,14 +230,31 @@ class DxSaleScrapper(BaseScrapper):
     
     def _extract_social_media_info(
         self,
-        soup: BeautifulSoup       
+        soup: BeautifulSoup,  # The BeautifulSoup object containing the page.
     ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
         Extract social media links from the soup.
 
+        This function searches for all the div elements with the class name 'MuiBox-root css-qokrjo' and iterates
+        through each of those div elements. It then finds all the anchor elements within each div and extracts the
+        href attribute from each anchor element. If the href attribute contains any of the social media websites
+        such as Twitter, Telegram, or the Website, it stores the href in the appropriate variable.
+
+        The variables are:
+            twitter_link: The href attribute of the Twitter link.
+            telegram_link: The href attribute of the Telegram link.
+            website_link: The href attribute of the Website link.
+
+        This function ignores links that contain the following:
+            - Any social media website link with "share/msg" in the link.
+            - Any link that starts with a forward slash '/'.
+            - Any link that contains "intent/tweet?" in the link, this is a Twitter specific link.
+            - The website "x.com" which is not a real domain.
+            - The website "discord.com", "facebook.com", "github.com", "reddit.com", "medium.com", "youtube.com",
+              "instagram.com", "whatsapp.com", or "linkedin.com".
+
         Args:
             soup: The BeautifulSoup object containing the page.
-            name: The project name to check for resemblance.
 
         Returns:
             A tuple containing Twitter, Telegram, and Website links.
@@ -272,70 +265,43 @@ class DxSaleScrapper(BaseScrapper):
 
         divs = soup.find_all("div", class_="MuiBox-root css-qokrjo")
 
-        for div in divs:
-            links = div.find_all("a")
-            for link in links:
-                href = link.get("href")
-                if "twitter.com" in href or "x.com" in href:
-                    if "intent/tweet?" in href:
-                        continue
-                    twitter_link = href
-                elif "t.me" in href or "telegram.me" in href:
-                    if "share/msg" in href:
-                        continue
-                    telegram_link = href
-                elif (
-                    "discord" in href
-                    or "facebook.com" in href
-                    or "github.com" in href
-                    or "reddit.com" in href
-                    or "medium.com" in href
-                    or "youtube.com" in href
-                    or "instagram.com" in href
-                    or "whatsapp.com" in href
-                    or "linkedin.com" in href
-                ):
-                    continue
-                else:
-                    if href.startswith('/'):
-                        continue
-                    website_link = href
+        twitter_link, telegram_link, website_link = super().social_media(divs)
+        # for div in divs:
+        #     links = div.find_all("a")
+        #     for link in links:
+        #         href = link.get("href")
+        #         if "twitter.com" in href or "x.com" in href:
+        #             if "intent/tweet?" in href:
+        #                 continue
+        #             twitter_link = href
+        #         elif "t.me" in href or "telegram.me" in href:
+        #             if "share/msg" in href:
+        #                 continue
+        #             telegram_link = href
+        #         elif (
+        #             "discord" in href
+        #             or "facebook.com" in href
+        #             or "github.com" in href
+        #             or "reddit.com" in href
+        #             or "medium.com" in href
+        #             or "youtube.com" in href
+        #             or "instagram.com" in href
+        #             or "whatsapp.com" in href
+        #             or "linkedin.com" in href
+        #         ):
+        #             continue
+        #         else:
+        #             if href.startswith('/'):
+        #                 continue
+        #             website_link = href
 
         return twitter_link, telegram_link, website_link
-
-    def open_sub_url(self, url: str) -> bool:
-        """
-        Open a sub URL in the driver.
-
-        Args:
-            url: The URL to open.
-
-        Returns:
-            True if the URL was opened successfully, False otherwise.
-        """
-        # Set the maximum time to wait for elements to be loaded (in seconds)
-        self.driver.set_page_load_timeout(10)
-
-        # Set implicit wait time for elements to be located
-        self.driver.implicitly_wait(10)
-
-        try:
-            # Attempt to open the URL
-            self.driver.get(url)
-            time.sleep(10)
-            return True
-        except Exception as e:
-            # Log any exceptions during URL opening
-            self.logging.error(f"Failed to open URL: {url}. Exception: {e}")
-
-        return False
-
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     scraper = DxSaleScrapper(logging)
-    status = scraper.start_driver()
+    status = scraper.start()
     
     if status:
         links = scraper.get_links()
@@ -344,7 +310,7 @@ if __name__ == "__main__":
         idx = 0
         for link in links:
             print(link)
-            status = scraper.open_sub_url(url=link)
+            status = scraper.open_url(url=link)
             if status == False:
                 continue # Skip to next data
             
@@ -372,4 +338,3 @@ if __name__ == "__main__":
             idx = idx + 1
             #scraper.extract_token_info(link)
 
-    
