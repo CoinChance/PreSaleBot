@@ -257,18 +257,18 @@ class Scheduler:
             self.logging.info('')
 
             self.logging.info("Starting Selenium Job")
-            # Run the DxSale job
-            self.selanium_job()
+            # Run the Solanium job
+            self.solanium_job()
             self.logging.info('')
 
             self.logging.info("Starting SolanaPad Job")
-            # Run the DxSale job
+            # Run the SolanaPad job
             self.solanapad_job()
             self.logging.info('')
 
             self.logging.info("Starting Pinksale Job")
-            # Run the DxSale job
-            self.pinksalejob()
+            # Run the PinkSale job
+            self.pinksale_job()
             self.logging.info('')
 
         except Exception as e:

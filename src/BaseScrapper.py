@@ -29,7 +29,7 @@ class BaseScrapper:
         self.logging = logging  # The Python logger to use for logging messages.
         self.scroll_downs = 10  # The number of times to scroll down to load more data.
         self.scroll_pause_time = 5
-        self.timeout = 20  # The number of seconds to wait for an element to appear on the page.
+        self.timeout = 40  # The number of seconds to wait for an element to appear on the page.
 
     def start_driver(self) -> None:
         """

@@ -168,16 +168,16 @@ class DxSaleScrapper(BaseScrapper):
         links_count = 0
         live_count = 0
         for div in divs:
-            print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+            #print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
             # Find all links in the div
             
             live_count += 1
             links = div.find_all('a')
-            print('----------------------------------------------')
+            #print('----------------------------------------------')
             for link in links:
                 # Extract the href attribute
                 href = link.get('href')
-                print('href: ', href)
+                #print('href: ', href)
                 if href.startswith('/dxsale/'):
                     link = "https://www.dx.app" + href
                     self._links.append(link)
